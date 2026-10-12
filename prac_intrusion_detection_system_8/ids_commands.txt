@@ -1,0 +1,82 @@
+Practical 08 - Intrusion Detection System (Cisco Packet Tracer, IOS IPS)
+
+Topology: 3 x 1941 routers (R1, R0, R2), 2 switches, PC0, PC1, Server0.
+Serial links (HWIC-2T added to each router): R1 <-> R0 <-> R2
+
+!===== IP addressing =====
+PC0     192.168.1.2  /24  gw 192.168.1.1
+Server0 192.168.1.50 /24  gw 192.168.1.1
+PC1     192.168.3.2  /24  gw 192.168.3.1
+R1  Gi0/0      192.168.1.1
+R1  Se0/1/0    10.1.1.1  255.255.255.252
+R0  Se0/1/0    10.1.1.2  255.255.255.252
+R0  Se0/1/1    10.2.2.1  255.255.255.252
+R2  Se0/1/1    10.2.2.2  255.255.255.252
+R2  Gi0/0      192.168.3.1
+
+!===== RIP routing =====
+! R1
+router rip
+ network 10.0.0.0
+ network 192.168.1.0
+! R0
+router rip
+ network 10.0.0.0
+! R2
+router rip
+ network 10.0.0.0
+ network 192.168.3.0
+
+!===== R1 base configuration =====
+hostname R1
+enable password cisco1
+! Server0 -> Services -> SYSLOG -> Service ON
+
+show version
+license boot module c1900 technology-package securityk9
+! (accept the license: yes)
+exit
+show version
+copy run start
+reload
+
+!===== R1 IPS configuration (after reload) =====
+enable
+mkdir ipsdir
+configure terminal
+ip ips config location flash:ipsdir
+ip ips name iosips
+ip ips notify log
+service timestamps log datetime msec
+logging host 192.168.1.50
+ip ips signature-category
+ category all
+  retired true
+  exit
+ category ios_ips basic
+  retired false
+  exit
+ exit
+interface g0/0
+ ip ips iosips out
+ exit
+
+!===== Modify the signature =====
+ip ips signature-definition
+ signature 2004 0
+  status
+   retired false
+   enabled true
+   exit
+  engine
+   event-action deny-packet-inline
+   exit
+  exit
+ exit
+exit
+show ip ips all
+
+!===== Verify =====
+! PC1 -> ping 192.168.1.2   (now blocked by signature 2004)
+! PC0 -> ping 192.168.3.2
+! Server0 -> Services -> SYSLOG: check the alerts

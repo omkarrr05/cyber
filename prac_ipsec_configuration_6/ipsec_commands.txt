@@ -1,0 +1,77 @@
+Practical 06 - IPsec Configuration (Cisco Packet Tracer)
+Topology: PC0 - R1 ==(20.0.0.0)== R0 ==(30.0.0.0)== R2 - PC1
+LAN1 = 192.168.1.0/24 (behind R1), LAN2 = 192.168.2.0/24 (behind R2)
+
+!===== Hostnames =====
+! Router0
+hostname R0
+! Router1
+hostname R1
+! Router2
+hostname R2
+
+!===== Router1: WAN interface + default route =====
+interface GigabitEthernet0/0
+ ip address 20.0.0.1 255.0.0.0
+ exit
+ip route 0.0.0.0 0.0.0.0 20.0.0.2
+
+!===== Router2: WAN interface + default route =====
+interface GigabitEthernet0/0
+ ip address 30.0.0.1 255.0.0.0
+ exit
+ip route 0.0.0.0 0.0.0.0 30.0.0.2
+
+!===== Router1 / Router2: enable security license =====
+show version
+license boot module c1900 technology-package securityk9
+! (accept the license: yes)
+end
+copy run startup-config
+reload
+
+!===================== R1 (Router1) =====================
+enable
+configure terminal
+access-list 100 permit ip 192.168.1.0 0.0.0.255 192.168.2.0 0.0.0.255
+crypto isakmp policy 10
+ encryption aes 256
+ authentication pre-share
+ group 5
+ exit
+crypto isakmp key ismile address 30.0.0.1
+crypto ipsec transform-set R1->R2 esp-aes 256 esp-sha-hmac
+crypto map IPSEC-MAP 10 ipsec-isakmp
+ set peer 30.0.0.1
+ set pfs group5
+ set security-association lifetime seconds 86400
+ set transform-set R1->R2
+ match address 100
+ exit
+interface g0/0
+ crypto map IPSEC-MAP
+
+!===================== R2 (Router2) =====================
+enable
+configure terminal
+access-list 100 permit ip 192.168.2.0 0.0.0.255 192.168.1.0 0.0.0.255
+crypto isakmp policy 10
+ encryption aes 256
+ authentication pre-share
+ group 5
+ exit
+crypto isakmp key ismile address 20.0.0.1
+crypto ipsec transform-set R2->R1 esp-aes 256 esp-sha-hmac
+crypto map IPSEC-MAP 10 ipsec-isakmp
+ set peer 20.0.0.1
+ set pfs group5
+ set security-association lifetime seconds 86400
+ set transform-set R2->R1
+ match address 100
+ exit
+interface g0/0
+ crypto map IPSEC-MAP
+
+!===== Verify (from the PCs) =====
+! PC0: ping 192.168.2.2
+! PC1: ping 192.168.1.2
